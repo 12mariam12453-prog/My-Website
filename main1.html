@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Movie App</title>
+</head>
+
+<body>
+
+<div id="videoContainer"></div> <!-- so detect later on -->
+
+<div class="buttons">
+  <button class="To-Be-Watched">To Be Watched</button>
+  <button class="Favorites">Favorites</button>
+  <button class="Description">Description</button>
+  <button class="Where-To-Watch">Where To Watch</button>
+</div>
+
+<div id="descriptionBox" class="dropdown"></div>
+<div id="whereToWatchBox" class="dropdown"></div>
+<div id="listBox" class="dropdown"></div>
+
+<script>
+
+/* =======================
+   MOVIE DATA
+======================= */
+
+const movies = [ // arry multiple trailers. 
+  {
+    id: "Airport",
+    title: "Airport",
+    genre: "Action, Drama, Thriller",
+    description: "Movie. \n Melodrama about a bomber on board an airplane, an airport almost closed by snow, and various personal problems of the people involved.great casting if interested in old 70s films.",
+    whereToWatch: "To prevent any unsafe viruses and ads download Brave. To watch for free this is on hdtodayz.to",
+    trailers: ["trailers/Airport.mp4", ]
+  },
+
+  {
+    id: "Mash",
+    title: "Mash",
+    genre: "War & Politics, Drama, Comedy",
+    description: "Tv show: \n 11 seasons \n 24 eps \n duration 25 min \n The 4077th Mobile Army Surgical Hospital is stuck in the middle of the Korean war. With little help from the circumstances they find themselves in, they are forced to make their own fun. Fond of practical jokes and revenge, the doctors, nurses, administrators, and soldiers often find ways of making wartime life bearable. Its old timey funny. I will be watching as a filler between other shows.",
+    whereToWatch: "To prevent any unsafe viruses and ads download Brave. To watch for free this is on hdtodayz.to",
+    trailers: ["trailers/Mash.mp4","trailers/Mash1.mp4"]
+  },
+];
+
+
+/* =======================
+   RECOMMENDATION LOGIC
+======================= */
+
+const getFavorites = () => {
+  return JSON.parse(localStorage.getItem("favorites")) || [];
+}; /* this is a helper function to get the favorites list from local storage. it returns an empty array if there are no favorites saved. 
+this is used to check if a movie is already in favorites and to display the list of favorites. */
+
+
+const getRecommendedMovies = () => {
+  const favorites = getFavorites(); // gets list of favorite movie ids from local storage. this is needed to determine which genres the user likes based on their 
+  // favorites and to recommend similar movies.
+
+  if (favorites.length === 0) {
+    return movies.sort(() => 0.5 - Math.random()); /* if no favorites, return a random selection of movies. 
+    this is a simple way to show some content to the user when they haven't interacted with the app yet. 
+    it shuffles the movies array and returns it. */
+  }
+
+  const favoriteGenres = movies
+    .filter(movie => favorites.includes(movie.id)) // filters the movies to only those that are in the favorites list based on their id. this gives us the movie objects
+    //  that the user has favorited.
+    .map(movie => movie.genre); // then maps those movie objects to their genres. this gives us a list of genres that the user likes based on their favorites.
+
+  const recommended = movies.filter(movie => /* filters the movies to find recommendations. the criteria for recommendation is that the movie's genre is in the user's
+   favorite genres and that the movie is not already in the favorites list. this ensures that we recommend movies that are similar
+    to what the user likes but that they haven't already favorited. */
+    favoriteGenres.includes(movie.genre) && // checks if the movie's genre is in the list of favorite genres.
+    !favorites.includes(movie.id) // checks if the movie is not already in the favorites list.
+  );
+
+  return recommended;
+};
+
+
+/* =======================
+   GLOBAL STATE
+======================= */
+
+let activeMovieId = null; // tracks which movie is currently active/selected. This is crucial for button actions and description display.
+const videoContainer = document.getElementById("videoContainer"); // finds element.
+
+// detect so can control them later on.
+const favoritesBtn = document.querySelector(".Favorites");
+const watchedBtn = document.querySelector(".To-Be-Watched");
+const descriptionBtn = document.querySelector(".Description");
+const descriptionBox = document.getElementById("descriptionBox");
+const whereToWatchBtn = document.querySelector(".Where-To-Watch");
+const whereToWatchBox = document.getElementById("whereToWatchBox");
+const listBox = document.getElementById("listBox");
+
+
+/* =======================
+   LOAD ALL TRAILERS
+======================= */
+
+const loadAllTrailers = () => {
+  videoContainer.innerHTML = "";
+
+  movies.forEach(movie => { // loops movies in their arrays.
+    movie.trailers.forEach(trailerPath => { // same but for trailers.
+      const video = document.createElement("video"); // creates a video element for each trailer.
+
+      video.src = trailerPath; // sets video source to the trailer path.
+      video.controls = true; // adds video controls (play, pause, etc.) to the video element.
+      video.style.width = "100%"; // adjusts video to screen size.
+      video.style.marginBottom = "20px"; 
+
+      // attach movie id to video. which is for which.
+      video.dataset.movieId = movie.id;
+
+      videoContainer.appendChild(video); // video on page.
+    });
+  });
+};
+
+loadAllTrailers(); // apply function to load trailers on page load.
+
+
+/* =======================
+   SELECT ACTIVE MOVIE
+======================= */
+
+videoContainer.addEventListener("click", (e) => {
+  if (e.target.tagName === "VIDEO") {
+    activeMovieId = e.target.dataset.movieId; // which movie is active based on click.
+    updateButtonStates(); // update button states based on active movie and local storage.
+  }
+});
+
+
+/* =======================
+   LOCAL STORAGE
+======================= */
+
+const saveToLocalStorage = (key, value) => { // value is movie id. key is either favorites or watched. This adds to local storage without overwriting existing data.
+  const existing = JSON.parse(localStorage.getItem(key)) || []; // reads data.
+
+  if (!existing.includes(value)) { // only add if not already there.
+    existing.push(value); // adds new value to array.
+    localStorage.setItem(key, JSON.stringify(existing)); // saves back to local storage.
+  }
+};
+
+const removeFromLocalStorage = (key, value) => {
+  let existing = JSON.parse(localStorage.getItem(key)) || []; /* reads data from local storage. if there is no data, it returns an empty array.
+   this is used to get the current list of favorites or watched movies so we can remove a movie from that list when unfavoriting or marking as unwatched. */
+  existing = existing.filter(item => item !== value); // removes the value from the array.
+  localStorage.setItem(key, JSON.stringify(existing)); /* saves the updated array back to local storage. this is used to update the favorites or watched list
+   in local storage after removing a movie from it.*/
+};
+
+const getFromLocalStorage = (key) => { 
+  return JSON.parse(localStorage.getItem(key)) || []; /* this is a helper function to get data from local storage. 
+  it takes a key (favorites or watched) and returns the corresponding list of movie ids.*/
+};
+
+
+/* =======================
+   BUTTON STATE UPDATE
+======================= */
+
+const updateButtonStates = () => {
+  if (!activeMovieId) return; // if no active movie, do nothing. this prevents errors when clicking buttons without selecting a movie first.
+
+  const favorites = getFromLocalStorage("favorites"); // gets current favorites list from local storage.
+  const watched = getFromLocalStorage("watched");
+
+  // toggle active class based on whether active movie is in favorites/watched lists. visuals criteria, smooth.
+  favoritesBtn.classList.toggle("active", favorites.includes(activeMovieId)); // if active movie is in favorites, add active class. if not, remove it.
+  watchedBtn.classList.toggle("active", watched.includes(activeMovieId));
+};
+
+
+/* =======================
+   FAVORITES BUTTON
+======================= */
+
+
+/* when favorites button is clicked, it checks if there is an active movie. if there is, it gets the current list of favorites from local storage. 
+then it checks if the active movie is already in the favorites list. if it is, it removes it (unfavorite). if it's not, it adds it to the list (favorite).*/
+
+favoritesBtn.addEventListener("click", () => { 
+  if (!activeMovieId) return; // if no active movie, do nothing.
+
+  const favorites = getFromLocalStorage("favorites"); // gets current favorites list from local storage.
+
+  if (favorites.includes(activeMovieId)) { // if already in favorites, remove it (unfavorite).
+    removeFromLocalStorage("favorites", activeMovieId);
+  } else {
+    saveToLocalStorage("favorites", activeMovieId); 
+  }
+
+  updateButtonStates(); // update button states to reflect the change in favorites.
+});
+
+
+/* =======================
+   WATCHED BUTTON
+======================= */
+
+watchedBtn.addEventListener("click", () => { 
+  if (!activeMovieId) return;
+
+  const watched = getFromLocalStorage("watched");
+
+  if (watched.includes(activeMovieId)) {
+    removeFromLocalStorage("watched", activeMovieId);
+  } else {
+    saveToLocalStorage("watched", activeMovieId);
+  }
+
+  updateButtonStates();
+});
+
+
+/* =======================
+   DESCRIPTION BUTTON
+======================= */
+
+descriptionBtn.addEventListener("click", () => { /* when description button is clicked, it checks if there is an active movie. if there is, 
+  it finds the movie object based on the active movie id.*/
+  if (!activeMovieId) return; // if no active movie, do nothing.
+
+  const movie = movies.find(m => m.id === activeMovieId); // finds the movie object in the movies array that matches the active movie id. 
+  // this is needed to get the description of the active movie to display it.
+
+ descriptionBox.innerHTML = `<p>${movie.description.replace(/\n/g, "<br>")}</p>`; /* sets the content of the description box to the description of the active movie. */
+  descriptionBox.classList.toggle("open"); // toggles the description box to show/hide the description.
+
+  whereToWatchBox.classList.remove("open");
+  listBox.classList.remove("open");
+});
+
+
+/* =======================
+  Where To Watch BUTTON
+======================= */
+
+whereToWatchBtn.addEventListener("click", () => { 
+  if (!activeMovieId) return;
+
+  const movie = movies.find(m => m.id === activeMovieId); // finds the movie object in the movies array that matches the active movie id. this is needed to get the whereToWatch info of the active movie to display it.
+
+  whereToWatchBox.innerHTML = `<p>${movie.whereToWatch}</p>`; // sets the content of the where to watch box to the whereToWatch property of the active movie. basically shows.
+  whereToWatchBox.classList.toggle("open");
+
+  descriptionBox.classList.remove("open"); // close description if open.
+  listBox.classList.remove("open"); // close other dropdowns if open.
+});
+
+
+/* =======================
+   SHOW LISTS
+======================= */
+
+const showList = (key) => { 
+  const items = getFromLocalStorage(key); // gets the list of movie ids from local storage based on the key (favorites or watched).
+
+  listBox.innerHTML = ""; // clears the list box before displaying the new list.
+
+  if (items.length === 0) { 
+    listBox.innerHTML = "<p>No movies saved yet.</p>";
+  } else {
+    const ul = document.createElement("ul"); // creates an unordered list element to hold the list of movies.
+
+    items.forEach(id => { 
+      const movie = movies.find(m => m.id === id); /* finds the movie object in the movies array that matches the id from local storage. 
+      this is needed to get the title of the movie to display in the list.*/
+      const li = document.createElement("li"); // creates a list item element for each movie in the favorites/watched list.
+      li.textContent = movie ? movie.title : id; // if movie is found, use its title. if not found (which shouldn't happen), just display the id as a fallback.
+      ul.appendChild(li); 
+    });
+
+    listBox.appendChild(ul);// adds the list of movies to the list box dropdown.
+  }
+
+  listBox.classList.toggle("open"); // toggles the list box to show/hide the list of movies in either favorites or watched based on the key passed to the function.
+  descriptionBox.classList.remove("open");
+  whereToWatchBox.classList.remove("open"); 
+};
+
+favoritesBtn.addEventListener("dblclick", () => showList("favorites")); // double click show list.
+watchedBtn.addEventListener("dblclick", () => showList("watched"));
+
+
+/* =======================
+   CLICK OUTSIDE CLOSE
+======================= */
+
+document.addEventListener("click", (event) => {
+
+  const clickedInsideList = listBox.contains(event.target); // checks if the click was inside the list box. if it was, we don't want to close the dropdown.
+  const clickedInsideDescription = descriptionBox.contains(event.target); // checks if the click was inside the description box. if it was, we don't want to close the dropdown.
+  const clickedInsideWhere = whereToWatchBox.contains(event.target); 
+  const clickedButton = event.target.closest(".buttons"); // same but for buttons. if click on button then no close.
+
+  if (!clickedInsideList && !clickedInsideDescription && !clickedInsideWhere && !clickedButton) { // if the click was outside of all dropdowns and buttons, then it closes any open dropdowns.
+    listBox.classList.remove("open"); // close list if open.
+    descriptionBox.classList.remove("open"); 
+    whereToWatchBox.classList.remove("open");
+  }
+});
+
+</script>
+
+
+<style>
+
+body {
+  margin: 0;
+  background: black;
+  font-family: Arial, sans-serif;
+}
+
+.buttons {
+  position: fixed; /* keeps the buttons in a fixed position on the screen even when scrolling. */
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%); /* centers the buttons horizontally on the page regardless of screen size. */
+  display: flex;
+  gap: 20px;
+  z-index: 1000; /* keeps them above the video */
+}
+
+.buttons button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.buttons button:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+button.active {
+  color: #4caf96;
+  opacity: 1;
+}
+
+.dropdown {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%); /* centers the dropdown horizontally on the page. */
+  width: 80%;
+  max-height: 0;
+  overflow: hidden;
+  background: rgba(0,0,0,0.9);
+  color: white;
+  border-radius: 8px;
+  padding: 0 20px;
+  transition: max-height 0.4s ease, padding 0.3s ease;
+  z-index: 999;
+}
+
+.dropdown.open {
+  max-height: 100%;
+  padding: 20px;
+}
+
+</style>
+</body>
+</html>
